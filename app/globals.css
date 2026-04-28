@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+ * Design tokens — see README "Design System". `class="dark"` on <html>
+ * flips the theme; `theme_override` from the user's role can pin it.
+ * ========================================================================= */
+
+:root {
+  /* light theme */
+  --bg-primary:     #ffffff;
+  --bg-secondary:   #f9fafb;
+  --bg-tertiary:    #f3f4f6;
+  --text-primary:   #111827;
+  --text-secondary: #6b7280;
+  --accent-primary: #2563eb;
+  --accent-success: #059669;
+  --accent-warning: #d97706;
+  --accent-error:   #dc2626;
+  --border:         #e5e7eb;
+
+  --font-display: 'Cal Sans', 'Satoshi', system-ui, -apple-system, sans-serif;
+  --font-body:    'Inter Variable', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  /* highlight.js token colors — light */
+  --hl-comment:  #6b7280;
+  --hl-keyword:  #7c3aed;
+  --hl-string:   #047857;
+  --hl-number:   #b45309;
+  --hl-function: #2563eb;
+  --hl-variable: #be185d;
+  --hl-type:     #0e7490;
+  --hl-builtin:  #b91c1c;
+  --hl-tag:      #2563eb;
+  --hl-attr:     #b45309;
+}
+
+.dark {
+  --bg-primary:     #0a0e14;
+  --bg-secondary:   #12161d;
+  --bg-tertiary:    #1a1f29;
+  --text-primary:   #e6e8eb;
+  --text-secondary: #9ca3af;
+  --accent-primary: #3b82f6;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-error:   #ef4444;
+  --border:         #1f2937;
+
+  /* highlight.js token colors — dark */
+  --hl-comment:  #6b7280;
+  --hl-keyword:  #c084fc;
+  --hl-string:   #6ee7b7;
+  --hl-number:   #fbbf24;
+  --hl-function: #60a5fa;
+  --hl-variable: #f472b6;
+  --hl-type:     #67e8f9;
+  --hl-builtin:  #fca5a5;
+  --hl-tag:      #60a5fa;
+  --hl-attr:     #fbbf24;
+}
+
+html, body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+/* avoid the FOUC where dark-mode users see a flash of light */
+html { color-scheme: light dark; }
+
+/* =========================================================================
+ * Markdown body — used inside assistant message bubbles.
+ * Keep this minimal; rely on tokens so dark/light just works.
+ * ========================================================================= */
+
+.markdown-body > * + * { margin-top: 0.75rem; }
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.markdown-body h1 { font-size: 1.25rem; margin-top: 1rem; }
+.markdown-body h2 { font-size: 1.125rem; margin-top: 1rem; }
+.markdown-body h3 { font-size: 1rem; }
+
+.markdown-body p { line-height: 1.65; }
+
+.markdown-body strong { font-weight: 600; color: var(--text-primary); }
+.markdown-body em { font-style: italic; }
+
+.markdown-body ul,
+.markdown-body ol { padding-left: 1.25rem; line-height: 1.6; }
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body li + li { margin-top: 0.25rem; }
+.markdown-body li > ul,
+.markdown-body li > ol { margin-top: 0.25rem; }
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--border);
+  padding: 0.25rem 0.75rem;
+  color: var(--text-secondary);
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.markdown-body th { background: var(--bg-tertiary); font-weight: 600; }
+
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.25rem 0;
+}
+
+/* =========================================================================
+ * highlight.js — minimal, design-token-driven theme.
+ * Class names from https://highlightjs.readthedocs.io/en/latest/css-classes-reference.html
+ * ========================================================================= */
+
+.hljs              { color: var(--text-primary); background: transparent; }
+
+.hljs-comment,
+.hljs-quote        { color: var(--hl-comment); font-style: italic; }
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-doctag       { color: var(--hl-keyword); }
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition     { color: var(--hl-string); }
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-meta         { color: var(--hl-number); }
+
+.hljs-title,
+.hljs-name,
+.hljs-title.function_,
+.hljs-title.class_ { color: var(--hl-function); }
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-attr         { color: var(--hl-variable); }
+
+.hljs-type,
+.hljs-class .hljs-title { color: var(--hl-type); }
+
+.hljs-built_in,
+.hljs-builtin-name { color: var(--hl-builtin); }
+
+.hljs-tag          { color: var(--hl-tag); }
+.hljs-attribute    { color: var(--hl-attr); }
+
+.hljs-deletion     { color: var(--accent-error); }
+.hljs-emphasis     { font-style: italic; }
+.hljs-strong       { font-weight: 600; }
