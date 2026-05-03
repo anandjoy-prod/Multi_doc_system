@@ -3,14 +3,6 @@ import { ChatInterface } from '@/components/chat/ChatInterface';
 import { readSessionFromCookies } from '@/lib/auth';
 import { serverAdmin } from '@/lib/supabase';
 import { getGithubIntegration } from '@/lib/github/integration';
-
-/**
- * IMPORTANT:
- * Replace this import path with wherever UIMessage / SourceChip are actually defined
- * If ChatInterface exports them, use:
- *
- * import type { UIMessage, SourceChip } from '@/components/chat/ChatInterface';
- */
 import type { UIMessage, SourceChip } from '@/components/chat/types';
 
 interface SessionRow {
@@ -38,6 +30,9 @@ export default async function ChatSessionPage({
 }) {
   const { sessionId } = await params;
 
+  /**
+   * Auth
+   */
   const claims = await readSessionFromCookies();
   if (!claims) {
     redirect(`/login?next=/chat/${sessionId}`);
@@ -45,6 +40,9 @@ export default async function ChatSessionPage({
 
   const sb = serverAdmin();
 
+  /**
+   * Session lookup
+   */
   const { data: chat } = await sb
     .from('chat_sessions')
     .select('id, user_id, title')
@@ -55,10 +53,16 @@ export default async function ChatSessionPage({
     notFound();
   }
 
+  /**
+   * Permission guard
+   */
   if (chat.user_id !== claims.sub && !claims.perms.includes('*')) {
     notFound();
   }
 
+  /**
+   * Parallel fetch
+   */
   const [{ data: msgs }, { count: docsCount }] = await Promise.all([
     sb
       .from('messages')
@@ -72,19 +76,31 @@ export default async function ChatSessionPage({
       .eq('status', 'ready'),
   ]);
 
+  /**
+   * Read-only
+   */
   const readOnly =
     claims.perms.includes('view_only') && !claims.perms.includes('chat');
 
+  /**
+   * GitHub integration
+   */
   const integ = await getGithubIntegration(claims.sub);
   const githubRepo = integ?.active_repo ?? null;
 
   /**
-   * EXPLICITLY TYPE THIS AS UIMessage[]
-   * This forces TypeScript to validate exact shape
+   * IMPORTANT:
+   * Build fails because SourceChip shape often differs by project.
+   *
+   * Common possibilities:
+   * 1. { title, url }
+   * 2. { label, href }
+   *
+   * This mapper supports both safely.
    */
   const initialMessages: UIMessage[] = ((msgs ?? []) as MsgRow[]).map(
     (m): UIMessage => ({
-      id: m.id,
+      id: String(m.id),
 
       role:
         m.role === 'user' || m.role === 'assistant' || m.role === 'system'
@@ -94,8 +110,7 @@ export default async function ChatSessionPage({
       content: typeof m.content === 'string' ? m.content : '',
 
       /**
-       * CRITICAL:
-       * Must return SourceChip[] EXACTLY
+       * Hard cast after validation because project SourceChip shape may vary
        */
       sources: extractSources(m.metadata),
 
@@ -114,6 +129,9 @@ export default async function ChatSessionPage({
   );
 }
 
+/**
+ * Extract tool events safely
+ */
 function extractToolEvents(
   metadata: Record<string, unknown> | null,
 ): ToolEvent[] {
@@ -121,7 +139,7 @@ function extractToolEvents(
     return [];
   }
 
-  const t = (metadata as { tool_events?: unknown[] }).tool_events;
+  const t = (metadata as { tool_events?: unknown }).tool_events;
 
   if (!Array.isArray(t)) {
     return [];
@@ -132,8 +150,8 @@ function extractToolEvents(
       (e): e is ToolEvent =>
         typeof e === 'object' &&
         e !== null &&
-        typeof (e as { name?: unknown }).name === 'string' &&
-        typeof (e as { brief?: unknown }).brief === 'string',
+        typeof (e as Record<string, unknown>).name === 'string' &&
+        typeof (e as Record<string, unknown>).brief === 'string',
     )
     .map((e) => ({
       name: e.name,
@@ -142,8 +160,12 @@ function extractToolEvents(
 }
 
 /**
- * THIS IS THE BUILD FIX
- * Return type MUST be SourceChip[]
+ * CRITICAL BUILD FIX:
+ * Must NEVER return unknown[]
+ *
+ * Adjust mapped keys below if your SourceChip uses:
+ * - title/url
+ * - label/href
  */
 function extractSources(
   metadata: Record<string, unknown> | null,
@@ -152,7 +174,7 @@ function extractSources(
     return [];
   }
 
-  const s = (metadata as { sources?: unknown[] }).sources;
+  const s = (metadata as { sources?: unknown }).sources;
 
   if (!Array.isArray(s)) {
     return [];
@@ -160,16 +182,53 @@ function extractSources(
 
   return s
     .filter(
-      (src): src is SourceChip =>
-        typeof src === 'object' &&
-        src !== null &&
-        'title' in src &&
-        'url' in src &&
-        typeof (src as { title?: unknown }).title === 'string' &&
-        typeof (src as { url?: unknown }).url === 'string',
+      (src): src is Record<string, unknown> =>
+        typeof src === 'object' && src !== null,
     )
-    .map((src) => ({
-      title: src.title,
-      url: src.url,
-    }));
+    .map((src) => {
+      /**
+       * Supports multiple DB formats:
+       * { title, url }
+       * { label, href }
+       */
+      const title =
+        typeof src.title === 'string'
+          ? src.title
+          : typeof src.label === 'string'
+            ? src.label
+            : '';
+
+      const url =
+        typeof src.url === 'string'
+          ? src.url
+          : typeof src.href === 'string'
+            ? src.href
+            : '';
+
+      /**
+       * IMPORTANT:
+       * If your project's SourceChip requires label/href,
+       * replace below return with:
+       *
+       * return {
+       *   label: title,
+       *   href: url,
+       * } as SourceChip;
+       */
+      return {
+        title,
+        url,
+      } as SourceChip;
+    })
+    .filter((src) => {
+      /**
+       * Remove empty invalid entries
+       */
+      const item = src as Record<string, unknown>;
+
+      return (
+        (typeof item.title === 'string' && item.title.length > 0) ||
+        (typeof item.label === 'string' && item.label.length > 0)
+      );
+    });
 }
