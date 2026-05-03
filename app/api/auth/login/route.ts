@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { signSession, setSessionCookie } from '@/lib/auth';
-import { findUserByEmail, findRoleById } from '@/lib/dummy-data';
+import { signSession, setSessionCookie, verifyPassword } from '@/lib/auth';
+import { serverAdmin } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 
@@ -10,10 +10,24 @@ const Body = z.object({
   password: z.string().min(1),
 });
 
+interface LoginUserRow {
+  id: string;
+  email: string;
+  password_hash: string;
+  role_id: string;
+  theme_preference: 'light' | 'dark' | 'system';
+  roles: {
+    name: string;
+    permissions: string[];
+    theme_override: 'light' | 'dark' | 'system' | null;
+  } | null;
+}
+
 /**
  * POST /api/auth/login
- * Validates dummy credentials, signs a JWT, sets it in an httpOnly cookie,
- * returns the user shape (including their role + theme).
+ *
+ * Looks up user + role in one round-trip, verifies bcrypt hash, signs JWT,
+ * sets session cookie, returns the user-shape we render in the UI.
  */
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
@@ -22,31 +36,56 @@ export async function POST(req: Request) {
   }
   const { email, password } = parsed.data;
 
-  const user = findUserByEmail(email);
-  if (!user || user.password !== password) {
+  const sb = serverAdmin();
+  const { data, error } = await sb
+    .from('users')
+    .select(
+      'id, email, password_hash, role_id, theme_preference, roles ( name, permissions, theme_override )',
+    )
+    .eq('email', email.toLowerCase())
+    .maybeSingle<LoginUserRow>();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) {
     return NextResponse.json(
       { error: 'Invalid email or password' },
       { status: 401 },
     );
   }
 
-  const role = findRoleById(user.role_id);
+  const ok = await verifyPassword(password, data.password_hash);
+  if (!ok) {
+    return NextResponse.json(
+      { error: 'Invalid email or password' },
+      { status: 401 },
+    );
+  }
+
+  // Update last_login (fire and forget — never block login on it).
+  sb.from('users')
+    .update({ last_login: new Date().toISOString() })
+    .eq('id', data.id)
+    .then(() => {});
+
+  const roleName = data.roles?.name ?? 'user';
+  const perms = data.roles?.permissions ?? [];
 
   const token = await signSession({
-    sub: user.id,
-    role: (role?.name ?? 'user') as never,
-    perms: role?.permissions ?? [],
+    sub: data.id,
+    role: roleName as never,
+    perms,
   });
   await setSessionCookie(token);
 
   return NextResponse.json({
     user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: role?.name ?? 'user',
-      theme_preference: user.theme_preference,
-      theme_override: role?.theme_override ?? null,
+      id: data.id,
+      email: data.email,
+      role: roleName,
+      theme_preference: data.theme_preference,
+      theme_override: data.roles?.theme_override ?? null,
     },
   });
 }

@@ -2,16 +2,17 @@
 import { z } from 'zod';
 
 const schema = z.object({
+  // ---- Supabase ------------------------------------------------------------
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+
   // ---- GitHub Models (free tier) -------------------------------------------
-  // Personal Access Token from https://github.com/settings/tokens
-  // No special scopes are required for the public Models catalog.
   GITHUB_TOKEN: z.string().min(1, 'Set GITHUB_TOKEN — see RUN.md'),
-  // OpenAI-compatible base URL. Default works for most users.
   GITHUB_MODELS_BASE_URL: z
     .string()
     .url()
     .default('https://models.inference.ai.azure.com'),
-  // Any model ID from https://github.com/marketplace?type=models
   GITHUB_MODEL: z.string().default('gpt-4o-mini'),
 
   // ---- Auth ----------------------------------------------------------------

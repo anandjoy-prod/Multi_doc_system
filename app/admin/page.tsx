@@ -1,10 +1,13 @@
 import { Users, MessageSquare, Activity, Sparkles } from 'lucide-react';
 import { StatCard } from '@/components/admin/StatCard';
 import { Sparkline } from '@/components/admin/Sparkline';
-import { ANALYTICS, USERS } from '@/lib/dummy-data';
+import { getDashboardStats } from '@/lib/analytics';
 
-export default function AdminDashboard() {
-  const { totals, messagesByDay, topUsers, recentActions } = ANALYTICS;
+// Always render this on each request — no static caching of analytics.
+export const dynamic = 'force-dynamic';
+
+export default async function AdminDashboard() {
+  const { totals, messagesByDay, topUsers } = await getDashboardStats();
 
   return (
     <div className="flex flex-col gap-6">
@@ -13,7 +16,7 @@ export default function AdminDashboard() {
           Dashboard
         </h2>
         <p className="text-sm text-fg-secondary">
-          Snapshot of your workspace — refreshed in real time.
+          Live totals from your Supabase project.
         </p>
       </header>
 
@@ -21,21 +24,21 @@ export default function AdminDashboard() {
         <StatCard
           label="Users"
           value={totals.users}
-          delta={`${USERS.length} total`}
+          delta="all roles"
           trend="flat"
           icon={Users}
         />
         <StatCard
           label="Sessions"
           value={totals.sessions}
-          delta="+1 this week"
-          trend="up"
+          delta="across all users"
+          trend="flat"
           icon={MessageSquare}
         />
         <StatCard
           label="Messages today"
           value={totals.messagesToday}
-          delta="+12% vs. yesterday"
+          delta="user + assistant turns"
           trend="up"
           icon={Sparkles}
         />
@@ -60,51 +63,43 @@ export default function AdminDashboard() {
               </p>
             </div>
             <span className="rounded-full border border-border px-2 py-0.5 text-xs text-fg-secondary">
-              dummy data
+              live
             </span>
           </div>
-          <Sparkline data={messagesByDay} className="h-24 w-full" />
+          {messagesByDay.some((n) => n > 0) ? (
+            <Sparkline data={messagesByDay} className="h-24 w-full" />
+          ) : (
+            <div className="flex h-24 items-center justify-center text-sm text-fg-secondary">
+              No messages this week — start a chat at /chat.
+            </div>
+          )}
         </section>
 
         <section className="rounded-2xl border border-border bg-bg-secondary p-5">
           <h3 className="mb-3 font-display text-base font-semibold">
             Top users
           </h3>
-          <ul className="space-y-2">
-            {topUsers.map((u) => (
-              <li
-                key={u.name}
-                className="flex items-center justify-between text-sm"
-              >
-                <span>{u.name}</span>
-                <span className="font-mono text-xs text-fg-secondary">
-                  {u.messages}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {topUsers.length === 0 ? (
+            <p className="text-sm text-fg-secondary">
+              Once users start chats, they will appear here.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {topUsers.map((u) => (
+                <li
+                  key={u.name}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <span>{u.name}</span>
+                  <span className="font-mono text-xs text-fg-secondary">
+                    {u.messages}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
-
-      <section className="rounded-2xl border border-border bg-bg-secondary p-5">
-        <h3 className="mb-4 font-display text-base font-semibold">
-          Recent activity
-        </h3>
-        <ul className="divide-y divide-border">
-          {recentActions.map((r, i) => (
-            <li
-              key={i}
-              className="flex items-center justify-between py-3 text-sm"
-            >
-              <div>
-                <span className="font-medium">{r.actor}</span>
-                <span className="text-fg-secondary"> — {r.action}</span>
-              </div>
-              <span className="text-xs text-fg-secondary">{r.at}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
     </div>
   );
 }

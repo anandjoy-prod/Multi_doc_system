@@ -13,7 +13,12 @@ interface SessionRow {
   message_count: number;
 }
 
-export function SessionList() {
+/**
+ * Session list. When `embedded` (rendered inside the mobile drawer that
+ * already has its own header), we drop the redundant title bar and show
+ * a slimmer "+ New" row instead.
+ */
+export function SessionList({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const params = useParams<{ sessionId?: string }>();
   const activeId = params?.sessionId;
@@ -51,19 +56,30 @@ export function SessionList() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-14 items-center justify-between border-b border-border px-4">
-        <span className="font-display text-sm font-semibold tracking-tight">
-          Conversations
-        </span>
-        <button
-          onClick={newChat}
-          className="flex h-7 items-center gap-1 rounded-md bg-accent px-2 text-xs font-medium text-white transition hover:opacity-90"
-        >
-          <Plus className="h-3.5 w-3.5" /> New
-        </button>
-      </div>
+      {embedded ? (
+        <div className="border-b border-border px-3 py-2">
+          <button
+            onClick={newChat}
+            className="flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-accent text-sm font-medium text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Plus className="h-4 w-4" /> New chat
+          </button>
+        </div>
+      ) : (
+        <div className="flex h-14 items-center justify-between border-b border-border px-4">
+          <span className="font-display text-sm font-semibold tracking-tight">
+            Conversations
+          </span>
+          <button
+            onClick={newChat}
+            className="flex h-7 items-center gap-1 rounded-md bg-accent px-2 text-xs font-medium text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Plus className="h-3.5 w-3.5" /> New
+          </button>
+        </div>
+      )}
 
-      <nav className="flex-1 overflow-y-auto p-2">
+      <nav aria-label="Conversations" className="flex-1 overflow-y-auto p-2">
         {loading ? (
           <div className="space-y-2 p-2">
             {Array.from({ length: 3 }).map((_, i) => (

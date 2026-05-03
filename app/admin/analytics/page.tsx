@@ -1,12 +1,15 @@
 import { Sparkline } from '@/components/admin/Sparkline';
-import { ANALYTICS } from '@/lib/dummy-data';
+import { getDashboardStats } from '@/lib/analytics';
+
+export const dynamic = 'force-dynamic';
 
 const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default function AdminAnalyticsPage() {
-  const { messagesByDay, topUsers } = ANALYTICS;
+export default async function AdminAnalyticsPage() {
+  const { messagesByDay, topUsers } = await getDashboardStats();
   const total = messagesByDay.reduce((a, b) => a + b, 0);
-  const avg = Math.round(total / messagesByDay.length);
+  const avg = total === 0 ? 0 : Math.round(total / messagesByDay.length);
+  const max = topUsers[0]?.messages ?? 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -15,7 +18,7 @@ export default function AdminAnalyticsPage() {
           Analytics
         </h2>
         <p className="text-sm text-fg-secondary">
-          A quick read on usage. Real charts wait for a real DB.
+          Live read from Supabase. Empty until users start chatting.
         </p>
       </header>
 
@@ -30,41 +33,54 @@ export default function AdminAnalyticsPage() {
             </p>
           </div>
         </div>
-        <Sparkline data={messagesByDay} className="h-32 w-full" />
-        <div className="mt-3 grid grid-cols-7 gap-2 text-center text-[11px] text-fg-secondary">
-          {messagesByDay.map((v, i) => (
-            <div key={i}>
-              <div className="font-mono text-xs text-fg-primary">{v}</div>
-              <div>{days[i]}</div>
+        {total === 0 ? (
+          <div className="flex h-32 items-center justify-center text-sm text-fg-secondary">
+            No messages yet — start a chat at /chat.
+          </div>
+        ) : (
+          <>
+            <Sparkline data={messagesByDay} className="h-32 w-full" />
+            <div className="mt-3 grid grid-cols-7 gap-2 text-center text-[11px] text-fg-secondary">
+              {messagesByDay.map((v, i) => (
+                <div key={i}>
+                  <div className="font-mono text-xs text-fg-primary">{v}</div>
+                  <div>{days[i]}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </section>
 
       <section className="rounded-2xl border border-border bg-bg-secondary p-5">
         <h3 className="mb-4 font-display text-base font-semibold">
           Most active users
         </h3>
-        <ul className="flex flex-col gap-3">
-          {topUsers.map((u) => {
-            const max = Math.max(...topUsers.map((x) => x.messages));
-            const pct = (u.messages / max) * 100;
-            return (
-              <li key={u.name} className="flex items-center gap-3">
-                <span className="w-32 shrink-0 truncate text-sm">{u.name}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-bg-tertiary">
-                  <div
-                    className="h-full rounded-full bg-accent"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="w-12 text-right font-mono text-xs text-fg-secondary">
-                  {u.messages}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        {topUsers.length === 0 ? (
+          <p className="text-sm text-fg-secondary">
+            Nobody has started a chat yet.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {topUsers.map((u) => {
+              const pct = max === 0 ? 0 : (u.messages / max) * 100;
+              return (
+                <li key={u.name} className="flex items-center gap-3">
+                  <span className="w-32 shrink-0 truncate text-sm">{u.name}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-bg-tertiary">
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-12 text-right font-mono text-xs text-fg-secondary">
+                    {u.messages}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
     </div>
   );

@@ -1,19 +1,27 @@
+import bcrypt from 'bcryptjs';
 import { jwtVerify, SignJWT } from 'jose';
 import type { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { env } from './env';
 import type { SessionClaims } from './types';
 
-/**
- * UI-only auth: dummy users with plaintext passwords (see lib/dummy-data.ts),
- * but a real signed JWT in an httpOnly cookie so middleware works the same
- * way it will once you wire a real DB back in.
- */
-
 const SESSION_COOKIE = 'session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 const secret = new TextEncoder().encode(env.JWT_SECRET);
+
+// ---------- password hashing ----------
+
+export async function hashPassword(plain: string): Promise<string> {
+  return bcrypt.hash(plain, 12);
+}
+
+export async function verifyPassword(
+  plain: string,
+  hash: string,
+): Promise<boolean> {
+  return bcrypt.compare(plain, hash);
+}
 
 // ---------- JWT ----------
 
@@ -26,13 +34,23 @@ export async function signSession(claims: SessionClaims): Promise<string> {
     .sign(secret);
 }
 
+// Match any UUID variant (lowercased; sub is hex-only).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function verifySession(token: string): Promise<SessionClaims | null> {
   try {
     const { payload } = await jwtVerify(token, secret, {
       algorithms: ['HS256'],
     });
+    const sub = payload.sub;
+    if (typeof sub !== 'string' || !UUID_RE.test(sub)) {
+      // Stale token from a previous schema (e.g. the dummy-data era when
+      // user IDs were strings like 'user-admin'). Treat as invalid so the
+      // middleware redirects to /login and the user re-authenticates.
+      return null;
+    }
     return {
-      sub: payload.sub as string,
+      sub,
       role: (payload.role as SessionClaims['role']) ?? 'user',
       perms: (payload.perms as string[]) ?? [],
     };
@@ -63,7 +81,6 @@ export async function readSessionFromCookies(): Promise<SessionClaims | null> {
   return verifySession(token);
 }
 
-// Variant for middleware (which receives a NextRequest).
 export async function readSessionFromRequest(
   req: NextRequest,
 ): Promise<SessionClaims | null> {
