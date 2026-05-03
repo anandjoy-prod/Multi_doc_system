@@ -4,6 +4,15 @@ import { readSessionFromCookies } from '@/lib/auth';
 import { serverAdmin } from '@/lib/supabase';
 import { getGithubIntegration } from '@/lib/github/integration';
 
+/**
+ * IMPORTANT:
+ * Replace this import path with wherever UIMessage / SourceChip are actually defined
+ * If ChatInterface exports them, use:
+ *
+ * import type { UIMessage, SourceChip } from '@/components/chat/ChatInterface';
+ */
+import type { UIMessage, SourceChip } from '@/components/chat/types';
+
 interface SessionRow {
   id: string;
   user_id: string;
@@ -15,14 +24,6 @@ interface MsgRow {
   role: 'user' | 'assistant' | 'system';
   content: string;
   metadata: Record<string, unknown> | null;
-}
-
-/**
- * Must match the exact shape expected by ChatInterface / UIMessage
- */
-interface SourceChip {
-  title: string;
-  url: string;
 }
 
 interface ToolEvent {
@@ -44,9 +45,6 @@ export default async function ChatSessionPage({
 
   const sb = serverAdmin();
 
-  /**
-   * Load chat session
-   */
   const { data: chat } = await sb
     .from('chat_sessions')
     .select('id, user_id, title')
@@ -57,16 +55,10 @@ export default async function ChatSessionPage({
     notFound();
   }
 
-  /**
-   * Permission check
-   */
   if (chat.user_id !== claims.sub && !claims.perms.includes('*')) {
     notFound();
   }
 
-  /**
-   * Load messages + indexed docs count in parallel
-   */
   const [{ data: msgs }, { count: docsCount }] = await Promise.all([
     sb
       .from('messages')
@@ -80,40 +72,36 @@ export default async function ChatSessionPage({
       .eq('status', 'ready'),
   ]);
 
-  /**
-   * Read-only mode
-   */
   const readOnly =
     claims.perms.includes('view_only') && !claims.perms.includes('chat');
 
-  /**
-   * GitHub integration
-   */
   const integ = await getGithubIntegration(claims.sub);
   const githubRepo = integ?.active_repo ?? null;
 
   /**
-   * Normalize DB messages -> UI-safe messages
+   * EXPLICITLY TYPE THIS AS UIMessage[]
+   * This forces TypeScript to validate exact shape
    */
-  const initialMessages = ((msgs ?? []) as MsgRow[]).map((m) => ({
-    id: m.id,
+  const initialMessages: UIMessage[] = ((msgs ?? []) as MsgRow[]).map(
+    (m): UIMessage => ({
+      id: m.id,
 
-    /**
-     * Safety fallback in case DB contains unexpected role
-     */
-    role:
-      m.role === 'user' || m.role === 'assistant' || m.role === 'system'
-        ? m.role
-        : 'user',
+      role:
+        m.role === 'user' || m.role === 'assistant' || m.role === 'system'
+          ? m.role
+          : 'user',
 
-    content: typeof m.content === 'string' ? m.content : '',
+      content: typeof m.content === 'string' ? m.content : '',
 
-    /**
-     * Strict typed arrays for Vercel build
-     */
-    sources: extractSources(m.metadata),
-    toolEvents: extractToolEvents(m.metadata),
-  }));
+      /**
+       * CRITICAL:
+       * Must return SourceChip[] EXACTLY
+       */
+      sources: extractSources(m.metadata),
+
+      toolEvents: extractToolEvents(m.metadata),
+    }),
+  );
 
   return (
     <ChatInterface
@@ -126,9 +114,6 @@ export default async function ChatSessionPage({
   );
 }
 
-/**
- * Extract tool events safely from metadata
- */
 function extractToolEvents(
   metadata: Record<string, unknown> | null,
 ): ToolEvent[] {
@@ -157,8 +142,8 @@ function extractToolEvents(
 }
 
 /**
- * Extract sources safely from metadata
- * Ensures compatibility with ChatInterface SourceChip[]
+ * THIS IS THE BUILD FIX
+ * Return type MUST be SourceChip[]
  */
 function extractSources(
   metadata: Record<string, unknown> | null,
@@ -178,6 +163,8 @@ function extractSources(
       (src): src is SourceChip =>
         typeof src === 'object' &&
         src !== null &&
+        'title' in src &&
+        'url' in src &&
         typeof (src as { title?: unknown }).title === 'string' &&
         typeof (src as { url?: unknown }).url === 'string',
     )
