@@ -96,7 +96,11 @@ function extractSources(metadata: Record<string, unknown> | null): SourceChip[] 
   if (!metadata) return [];
   const raw = (metadata as { sources?: unknown }).sources;
   if (!Array.isArray(raw)) return [];
-  return raw.filter(isSourceChip);
+  const out: SourceChip[] = [];
+  for (const item of raw) {
+    if (isSourceChip(item)) out.push(item);
+  }
+  return out;
 }
 
 function isToolEvent(value: unknown): value is ToolEvent {
@@ -111,5 +115,9 @@ function extractToolEvents(
   if (!metadata) return [];
   const raw = (metadata as { tool_events?: unknown }).tool_events;
   if (!Array.isArray(raw)) return [];
-  return raw.filter(isToolEvent);
+  const out: ToolEvent[] = [];
+  for (const item of raw) {
+    if (isToolEvent(item)) out.push(item);
+  }
+  return out;
 }
